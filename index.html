@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<meta name="theme-color" content="#05070b">
+<meta name="description" content="Última Luz: un juego 2D de supervivencia contra oleadas de zombis. Aguanta la noche, mejora tus armas y sobrevive.">
+<title>Última Luz — Supervivencia Zombie</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b10'/%3E%3Cpath d='M16 5l8 4v7c0 5-3.6 8.6-8 10-4.4-1.4-8-5-8-10V9z' fill='none' stroke='%23ffb545' stroke-width='2.2'/%3E%3Cpath d='M16 11v8M12 15h8' stroke='%23ffb545' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="game" aria-label="Juego de supervivencia zombie"></canvas>
+<div id="vignette"></div>
+<div id="damage-flash"></div>
+<div id="grain"></div>
+
+<!-- ============================ HUD ============================ -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="hud-left panel">
+      <div class="level-row">
+        <div class="level-badge"><span>NIVEL</span><b id="level-num">1</b></div>
+        <div class="xp-wrap">
+          <div class="bar-label"><span>EXPERIENCIA</span><span id="xp-text">0 / 10</span></div>
+          <div class="bar xp"><i id="xp-fill"></i></div>
+        </div>
+      </div>
+      <div class="vital">
+        <div class="bar-label"><span class="ico">&#10010;</span><span>SALUD</span><b id="hp-text">100</b></div>
+        <div class="bar hp"><i id="hp-fill"></i></div>
+      </div>
+      <div class="vital">
+        <div class="bar-label"><span class="ico">&#187;</span><span>IMPULSO</span><b id="dash-text">LISTO</b></div>
+        <div class="bar dash"><i id="dash-fill"></i></div>
+      </div>
+    </div>
+
+    <div class="wave-wrap">
+      <div class="wave-kicker" id="wave-kicker">SUPERVIVENCIA</div>
+      <div class="wave-num" id="wave-num">OLEADA 01</div>
+      <div class="wave-status" id="wave-status">PREPARANDO...</div>
+    </div>
+
+    <div class="hud-right">
+      <div class="panel score-panel">
+        <div class="score-line"><span>PUNTOS</span><b id="score">0</b></div>
+        <div class="score-sub"><span>BAJAS <b id="kills">0</b></span><span>RÉCORD <b id="best">0</b></span></div>
+      </div>
+      <div class="sys-buttons">
+        <button id="btn-mute" class="icon-btn" aria-label="Silenciar sonido" title="Silenciar (M)">
+          <svg class="ic-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+          <svg class="ic-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
+        </button>
+        <button id="btn-pause" class="icon-btn" aria-label="Pausa" title="Pausa (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="boss-wrap" class="hidden">
+    <div class="boss-name"><span>OBJETIVO</span> TITÁN</div>
+    <div class="bar boss"><i id="boss-fill"></i></div>
+  </div>
+
+  <div id="toast" aria-live="polite"></div>
+
+  <div class="hud-bottom">
+    <div id="buff-indicator" class="buff hidden"><span>ADRENALINA</span><b id="buff-time">8.0</b></div>
+    <div class="hud-hint panel">
+      <span><kbd>WASD</kbd> MOVER</span>
+      <span><kbd>RATÓN</kbd> APUNTAR / DISPARAR</span>
+      <span><kbd>SHIFT</kbd> IMPULSO</span>
+      <span><kbd>R</kbd> RECARGAR</span>
+      <span><kbd>1-4</kbd> ARMAS</span>
+    </div>
+    <div class="panel weapon-panel">
+      <div class="weapon-slots" id="weapon-slots"></div>
+      <div class="weapon-main">
+        <div class="weapon-name" id="weapon-name">PISTOLA</div>
+        <div class="ammo"><b id="ammo-mag">12</b><span id="ammo-reserve">/ &#8734;</span></div>
+      </div>
+      <div class="bar reload hidden" id="reload-bar-wrap"><i id="reload-fill"></i></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ TÁCTIL ============================ -->
+<div id="touch-ui" class="hidden">
+  <div class="stick" id="stick-move" aria-label="Joystick de movimiento"><div class="stick-ring"></div><div class="stick-knob"></div><span class="stick-tag">MOVER</span></div>
+  <div class="stick" id="stick-aim" aria-label="Joystick de apuntado"><div class="stick-ring"></div><div class="stick-knob"></div><span class="stick-tag">APUNTAR</span></div>
+  <div class="touch-buttons">
+    <button id="btn-touch-swap" class="touch-btn small" aria-label="Cambiar arma">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h11l-2.5-2.5M20 16H9l2.5 2.5"/></svg>
+    </button>
+    <button id="btn-touch-reload" class="touch-btn small" aria-label="Recargar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>
+    </button>
+    <button id="btn-touch-dash" class="touch-btn dash-btn" aria-label="Impulso">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ============================ PANTALLAS ============================ -->
+<div id="screens">
+
+  <section id="screen-title" class="screen active">
+    <div class="title-top">
+      <div class="eyebrow"><i></i> SUPERVIVENCIA &middot; APOCALIPSIS ZOMBIE <i></i></div>
+      <h1 class="logo"><span class="l1">ÚLTIMA</span> <span class="l2">LUZ</span></h1>
+      <p class="tagline">La ciudad cayó. La noche es larga.<br><b>¿Cuántas oleadas aguantarás?</b></p>
+    </div>
+
+    <div class="title-panel">
+      <button id="btn-play" class="btn primary"><span>JUGAR</span><small>ENTRAR EN LA CIUDAD</small></button>
+      <div class="best-line"><span>RÉCORD PERSONAL</span><b id="title-best">0</b></div>
+      <div class="controls-grid">
+        <div><kbd>WASD</kbd><span>Moverte</span></div>
+        <div><kbd>RATÓN</kbd><span>Apuntar y disparar</span></div>
+        <div><kbd>SHIFT</kbd><span>Impulso</span></div>
+        <div><kbd>R</kbd><span>Recargar</span></div>
+        <div><kbd>1-4</kbd><span>Cambiar arma</span></div>
+        <div><kbd>ESC</kbd><span>Pausa</span></div>
+      </div>
+      <div class="touch-controls">
+        <div><i>&#9664;</i><b>MOVER</b><span>Joystick izquierdo</span></div>
+        <div><i>&#9654;</i><b>APUNTAR</b><span>Joystick derecho</span></div>
+        <div><i>&#9678;</i><b>DISPARO</b><span>Autom&aacute;tico</span></div>
+      </div>
+      <p class="micro">Compatible con teclado, ratón y pantallas táctiles.</p>
+    </div>
+
+    <div class="title-footer"><span>ÚLTIMA LUZ</span><span>CANVAS 2D &middot; SIN DESCARGAS</span></div>
+  </section>
+
+  <section id="screen-levelup" class="screen overlay-screen">
+    <div class="levelup-head">
+      <div class="kicker">NIVEL <span id="levelup-num">2</span> &middot; EL TIEMPO SE DETIENE</div>
+      <h2>ELIGE UNA MEJORA</h2>
+      <p>Tu instinto decide cómo sobrevives. Elige bien.</p>
+    </div>
+    <div id="upgrade-cards" class="cards"></div>
+    <div class="levelup-foot"><span class="desk">PULSA <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> O TOCA UNA TARJETA</span><span class="touch-note">TOCA UNA TARJETA PARA ELEGIR</span></div>
+  </section>
+
+  <section id="screen-pause" class="screen overlay-screen">
+    <div class="modal pause-modal">
+      <div class="kicker">SISTEMA &middot; EN ESPERA</div>
+      <h2>PAUSA</h2>
+      <p class="modal-sub">La noche aguarda. No tardes demasiado.</p>
+      <div class="pause-stats">
+        <div><span>OLEADA</span><b id="pause-wave">1</b></div>
+        <div><span>PUNTOS</span><b id="pause-score">0</b></div>
+        <div><span>BAJAS</span><b id="pause-kills">0</b></div>
+      </div>
+      <button id="btn-resume" class="btn primary"><span>CONTINUAR</span></button>
+      <div class="modal-row">
+        <button id="btn-pause-restart" class="btn ghost">REINICIAR</button>
+        <button id="btn-pause-menu" class="btn ghost">MENÚ</button>
+      </div>
+      <div class="modal-controls"><kbd>ESC</kbd> REANUDAR &nbsp;&middot;&nbsp; <kbd>M</kbd> SONIDO</div>
+    </div>
+  </section>
+
+  <section id="screen-over" class="screen overlay-screen over-screen">
+    <div class="modal over-modal">
+      <div class="kicker danger">LA NOCHE TE ALCANZÓ</div>
+      <h2>HAS CAÍDO</h2>
+      <p class="modal-sub" id="over-line">La ciudad reclama a otro superviviente.</p>
+      <div class="over-stats">
+        <div><span>OLEADA</span><b id="over-wave">1</b></div>
+        <div><span>BAJAS</span><b id="over-kills">0</b></div>
+        <div><span>TIEMPO</span><b id="over-time">0:00</b></div>
+        <div><span>PUNTOS</span><b id="over-score">0</b></div>
+      </div>
+      <div id="record-badge" class="record hidden">NUEVO RÉCORD</div>
+      <button id="btn-retry" class="btn primary"><span>OTRA VEZ</span><small>VOLVER A LA CALLE</small></button>
+      <div class="modal-row">
+        <button id="btn-over-menu" class="btn ghost">MENÚ PRINCIPAL</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/world.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/render.js"></script>
+</body>
+</html>
